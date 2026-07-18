@@ -121,5 +121,5 @@ export function findCredentials(activeWorkspacePath: string | null): Credentials
         }
     }
 
-    return null
+    return null;
 }

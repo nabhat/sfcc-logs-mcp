@@ -17,8 +17,8 @@ function getWebDavClient(credentials: Credentials): WebDAVClient {
 
 // Helper to check if a filename is a background cron job log
 function isJobLog(filename: string): boolean {
-    const lower = filename.toLowerCase()
-    return lower.includes('job') || lower.startsWith('jobs-') || lower.startsWith('job-')
+    const lower = filename.toLowerCase();
+    return lower.includes('job') || lower.startsWith('jobs-') || lower.startsWith('job-');
 }
 
 // Helper to normalize the data into YYYYMMDD format
@@ -53,7 +53,7 @@ export async function listLogs(credentials: Credentials): Promise<LogFileMetadat
         .sort((a, b) => {
             const dateA = a.lastModified ? new Date(a.lastModified).getTime() : 0;
             const dateB = b.lastModified ? new Date(b.lastModified).getTime() : 0;
-            return dateB - dateA
+            return dateB - dateA;
         });
 }
 
@@ -87,10 +87,10 @@ export async function getLogContent(credentials: Credentials, fileName: string, 
 
     // If text was successfully chunked by range, drop the first line as it may be cut in the middle of a string
     if (isTurncated && lines.length > 1) {
-        lines.shift()
+        lines.shift();
     }
 
-    return lines.slice(-count).join('\n')
+    return lines.slice(-count).join('\n');
 }
 
 /**
@@ -138,7 +138,7 @@ export async function summarizeLogs(credentials: Credentials, date = 'today'): P
 
     const matchedFiles = files.filter(f => !datePattern || f.name.includes(datePattern));
     if (matchedFiles.length === 0) {
-        return `No log files found for date: ${datePattern || 'any'}`
+        return `No log files found for date: ${datePattern || 'any'}`;
     }
 
     let totalSize = 0;
@@ -179,7 +179,7 @@ export async function summarizeLogs(credentials: Credentials, date = 'today'): P
     let summary = `=== SFCC Log Summary for Date: ${datePattern || 'any'} ===\n`;
     summary += `Total Files: ${matchedFiles.length}\n`;
     summary += `Total Size: ${(totalSize / 1024 / 1024).toFixed(2)} MB\n\n`;
-    summary += `Category Breakdown:\n`;
+    summary += 'Category Breakdown:\n';
 
     Object.entries(categories).forEach(([cat, data]) => {
         if (data.count > 0) {
@@ -187,7 +187,7 @@ export async function summarizeLogs(credentials: Credentials, date = 'today'): P
         }
     });
 
-    summary += `\nNewest Active Files:\n`;
+    summary += '\nNewest Active Files:\n';
     matchedFiles.slice(0, 3).forEach(f => {
         summary += `- ${f.name} (${(f.size / 1024).toFixed(2)}KB, Modified: ${f.lastModified})\n`;
     });
@@ -208,7 +208,7 @@ export async function searchLogs(credentials: Credentials, pattern: string, logL
         matchedFiles = matchedFiles.filter(f => {
             const name = f.name.toLowerCase();
             return name.includes(`- ${logLeve.toLowerCase()}-`) || name.startsWith(`${logLeve.toLowerCase()}-`);
-        })
+        });
     }
 
     if (matchedFiles.length === 0) {
@@ -230,13 +230,13 @@ export async function searchLogs(credentials: Credentials, pattern: string, logL
                     file: file.name,
                     line: index + 1,
                     text: line.trim()
-                })
+                });
             }
-        })
+        });
     }
 
     if (results.length === 0) {
-        return `No matches found for the pattern: "${pattern}" across ${filesToScan.length} files scanned.`
+        return `No matches found for the pattern: "${pattern}" across ${filesToScan.length} files scanned.`;
     }
 
     return `Found ${results.length} matches for pattern: "${pattern}" across ${filesToScan.length} files scanned.\n\n` +
@@ -255,7 +255,7 @@ export async function listJobLogs(credentials: Credentials, limit = 10): Promise
         .map(l => `- ${l.name} (Size: ${(l.size / 1024).toFixed(2)} KB, Modified: ${l.lastModified})`)
         .join('\n');
 
-    return fileList ? `Available Background Job Logs:\n\n${fileList}` : `No job logs found on the instance.`;
+    return fileList ? `Available Background Job Logs:\n\n${fileList}` : 'No job logs found on the instance.';
 }
 
 /**
@@ -280,9 +280,9 @@ export async function searchJobLogsByName(credentials: Credentials, jobName: str
  */
 export async function getJobLogEntries(credentials: Credentials, level: string | undefined, limit = 10, jobName?: string): Promise<string> {
     const files = await listLogs(credentials);
-    let matchedFiles = files.filter(f => isJobLog(f.name))
+    let matchedFiles = files.filter(f => isJobLog(f.name));
     if (jobName) {
-        matchedFiles = matchedFiles.filter(f => f.name.toLowerCase().includes(jobName.toLowerCase()))
+        matchedFiles = matchedFiles.filter(f => f.name.toLowerCase().includes(jobName.toLowerCase()));
     }
 
     if (matchedFiles.length == 0) {
@@ -336,13 +336,13 @@ export async function searchJobLogs(credentials: Credentials, pattern: string, l
                     file: file.name,
                     line: index + 1,
                     text: line.trim()
-                })
+                });
             }
-        })
+        });
     }
 
     if (results.length === 0) {
-        return `No matches found for the pattern: "${pattern}" across ${filesToScan.length} files scanned.`
+        return `No matches found for the pattern: "${pattern}" across ${filesToScan.length} files scanned.`;
     }
 
     return `Found ${results.length} matches for pattern: "${pattern}" across ${filesToScan.length} files scanned.\n\n` +
@@ -397,14 +397,14 @@ export async function getJobExecutionSummary(credentials: Credentials, jobName?:
         }
     });
 
-    let summary = `=== SFCC Background Job Execution Summary ===\n`;
+    let summary = '=== SFCC Background Job Execution Summary ===\n';
     summary += `Log File: ${targetFile.name}\n`;
     summary += `Job Status: [${jobStatus}]\n`;
     summary += `Duration: ${duration}\n\n`;
-    summary += `Execution Steps Audit:\n`;
+    summary += 'Execution Steps Audit:\n';
 
     if (steps.length === 0) {
-        summary += `No specific step-execution logs parsed inside the file.\n`;
+        summary += 'No specific step-execution logs parsed inside the file.\n';
     } else {
         steps.forEach((s, i) => {
             const timeInfo = s.startedAt ? `Started: ${s.startedAt}` : '';
