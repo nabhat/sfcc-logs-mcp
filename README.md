@@ -5,6 +5,8 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-blue.svg)](https://nodejs.org/)
 [![Platform: SFCC](https://img.shields.io/badge/Platform-%20SFCC%20Demandware-orange.svg)](https://www.salesforce.com/products/commerce-cloud/overview/)
 [![Model Context Protocol](https://img.shields.io/badge/MCP-Supported-green.svg)](https://modelcontextprotocol.io/)
+[![Dependabot Updates](https://github.com/nabhat/sfcc-logs-mcp/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/nabhat/sfcc-logs-mcp/actions/workflows/dependabot/dependabot-updates)
+[![CodeQL](https://github.com/nabhat/sfcc-logs-mcp/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/nabhat/sfcc-logs-mcp/actions/workflows/github-code-scanning/codeql)
 
 A robust, standardized Model Context Protocol (MCP) server that empowers AI coding agents (such as Claude Desktop, Cursor, or VSCode Copilot) to directly fetch, tail, and clean Salesforce Commerce Cloud (SFCC/Demandware) log files in real-time over standard I/O (stdio).
 
