@@ -1,5 +1,6 @@
 # Salesforce Commerce Cloud (SFCC) Logs MCP Server
 
+[![CI](https://github.com/nabhat/sfcc-logs-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/nabhat/sfcc-logs-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-blue.svg)](https://nodejs.org/)
 [![Platform: SFCC](https://img.shields.io/badge/Platform-%20SFCC%20Demandware-orange.svg)](https://www.salesforce.com/products/commerce-cloud/overview/)
