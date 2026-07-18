@@ -27,7 +27,7 @@ This MCP server implements a **Context-Aware Workspace Handshake**:
 ### Installation
 ```bash
 #Install globally
-npm install -g @nabhat/sfcc-logs-mcp
+npm install -g sfcc-logs-mcp
 
 ```
 
