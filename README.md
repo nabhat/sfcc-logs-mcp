@@ -1,57 +1,113 @@
-# Salesforce Commerce Cloud (SFCC) Logs MCP Server
+# 🚀 Salesforce Commerce Cloud (SFCC) Logs MCP Server
 
 [![CI](https://github.com/nabhat/sfcc-logs-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/nabhat/sfcc-logs-mcp/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=nabhat_sfcc-logs-mcp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=nabhat_sfcc-logs-mcp)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=nabhat_sfcc-logs-mcp&metric=coverage)](https://sonarcloud.io/summary/new_code?id=nabhat_sfcc-logs-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-blue.svg)](https://nodejs.org/)
-[![Platform: SFCC](https://img.shields.io/badge/Platform-%20SFCC%20Demandware-orange.svg)](https://www.salesforce.com/products/commerce-cloud/overview/)
 [![Model Context Protocol](https://img.shields.io/badge/MCP-Supported-green.svg)](https://modelcontextprotocol.io/)
 [![Dependabot Updates](https://github.com/nabhat/sfcc-logs-mcp/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/nabhat/sfcc-logs-mcp/actions/workflows/dependabot/dependabot-updates)
-[![CodeQL](https://github.com/nabhat/sfcc-logs-mcp/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/nabhat/sfcc-logs-mcp/actions/workflows/github-code-scanning/codeql)
 
-A robust, standardized Model Context Protocol (MCP) server that empowers AI coding agents (such as Claude Desktop, Cursor, or VSCode Copilot) to directly fetch, tail, and clean Salesforce Commerce Cloud (SFCC/Demandware) log files in real-time over standard I/O (stdio).
-
----
-
-## ⚡ The Challenge This Server Solves
-
-When developers work across **multiple SFCC instances**, configuring separate MCP servers for each instance/setup is clunky and impractical.
-
-Typical MCP servers run globally with static environment configurations, makingit imposible to switch instances dynamically as you change project folders in your editor.
-
-### 🌟 Our Solution: Dynamic Workspace Resolution
-
-This MCP server implements a **Context-Aware Workspace Handshake**:
-1. During initialization, the server intercepts the editor's active workspace folder path (`workspaceFolders` array) sent by the host (Claude. Cursor, etc.).
-2. When a tool is invoked, the server walks up the directory tree *starting from the active conversation folder* to locate the corresponding **`dw.json`** or **`.env`** file.
-3. It dynamically extracts the specific hostname, username, and password for **that specific project's instances** allowing seamless hot-swapping between different instances as you switch between sessions or projects.
+A production-grade **Model Context Protocol (MCP)** server that enables AI coding assistants (**Claude Desktop, Cursor, Gemini, Claude Code, VS Code Copilot, Windsurf**, etc.) to query, tail, search, analyze, and clean **Salesforce Commerce Cloud (SFCC / Demandware)** logs in real-time over standard I/O (stdio).
 
 ---
 
-## 📦 Installation & Usage
+## ✨ Key Features
 
-### 1. Global Installation (Recommended)
-Install globally so it is available directly in your `PATH` (similar to `gemini` or `claude`):
+* 🔄 **Context-Aware Dynamic Workspace Resolution**: Automatically detects the active workspace folder sent during the MCP initialization handshake and walks up the directory tree to find `dw.json` or `.env`. Switch between client projects or sandbox environments seamlessly without restarting your MCP server or changing settings.
+* ⚡ **Bandwidth-Optimized Range Chunking**: Uses HTTP `Range` headers (`bytes=-1MB`) over WebDAV to fetch only the trailing chunk of huge log files. Tail multi-gigabyte production logs in milliseconds with minimal bandwidth consumption.
+* 🔍 **Multi-File Search & Filtering**: Perform case-insensitive regex/text searches across multiple log files filtered by log level (`error`, `warn`, `info`, `debug`) or target date (`YYYYMMDD` or `today`).
+* ⏱️ **SFCC Background Job Analytics**: Dedicated toolset to inspect cron job logs (`job-*`), filter entries by severity, and parse step boundaries to construct visual execution timelines (`RUNNING`, `OK`, `ERROR`).
+* 📊 **Statistical Log Volume Summaries**: Generate high-level audits breaking down active log volume, category distributions, file counts, and newest active files for any given date.
+* 🧹 **Log Sanitization**: Clean or reset active log files directly from chat to isolate freshly reproduced bugs.
+
+---
+
+## 📦 Installation
+
+### Global Installation (Recommended)
+Install globally to make the `sfcc-logs-mcp` binary available everywhere in your `PATH`:
+
 ```bash
 npm install -g sfcc-logs-mcp
 ```
 
-Once installed, you can execute it directly anywhere:
+Once installed globally, you can run:
 ```bash
 sfcc-logs-mcp
-# or alias
+# or shorthand alias
 sfcc-logs
 ```
 
-### 2. Run without installation (npx)
+### Run on Demand (npx)
 ```bash
 npx sfcc-logs-mcp
 ```
 
 ---
 
+## 🔐 Authentication & Credential Discovery
+
+The server resolves credentials in the following order of priority:
+
+### 1. `dw.json` (Standard SFCC Tooling Config)
+Place a `dw.json` file in your workspace root (or any parent directory):
+```json
+{
+  "hostname": "your-sandbox.demandware.net",
+  "username": "your_webdav_username",
+  "password": "your_webdav_password",
+  "webdav_path": "/on/demandware.servlet/webdav/Sites/Logs"
+}
+```
+
+### 2. `.env` File
+Alternatively, define credentials in a local `.env` file in your project folder:
+```env
+SFCC_SERVER=your-sandbox.demandware.net
+SFCC_USERNAME=your_webdav_username
+SFCC_PASSWORD=your_webdav_password
+SFCC_WEBDAV_PATH=/on/demandware.servlet/webdav/Sites/Logs
+```
+
+### 3. Environment Variables
+Set system environment variables for static single-instance configurations:
+```env
+DW_WEBDAV_USERNAME=your_webdav_username
+DW_WEBDAV_PASSWORD=your_webdav_password
+SFCC_SERVER=your-sandbox.demandware.net
+```
+
+---
+
+## 🛠️ MCP Tools Reference
+
+| Tool Name | Description | Arguments |
+| :--- | :--- | :--- |
+| **`get_sfcc_logfile`** | List all available log files or return the last `count` lines from a specific log file. | `logFileName` *(optional)*, `count` *(default: 10)* |
+| **`clean_sfcc_logfile`** | Clean/reset an active log file by replacing it with a timestamped cleared marker. | `logFileName` *(required)* |
+| **`get_latest_error`** | Fetch the newest error logs for `today` or a specific date string (`YYYYMMDD`). | `limit` *(default: 10)*, `date` *(default: 'today')* |
+| **`get_latest_warn`** | Fetch the newest warning logs for `today` or a specific date string (`YYYYMMDD`). | `limit` *(default: 10)*, `date` *(default: 'today')* |
+| **`get_latest_info`** | Fetch the newest info logs for `today` or a specific date string (`YYYYMMDD`). | `limit` *(default: 10)*, `date` *(default: 'today')* |
+| **`get_latest_debug`** | Fetch the newest debug logs for `today` or a specific date string (`YYYYMMDD`). | `limit` *(default: 10)*, `date` *(default: 'today')* |
+| **`summarize_logs`** | Generate a statistical breakdown of log categories, file counts, and sizes. | `date` *(default: 'today')* |
+| **`search_logs`** | Search across multiple log files matching level/date for a text pattern. | `pattern` *(required)*, `loglevel` *(default: 'all')*, `limit` *(default: 20)*, `date` *(default: 'today')* |
+| **`get_latest_job_log_files`**| List background cron job log files (`job-*`), sorted newest first. | `limit` *(default: 10)* |
+| **`search_job_logs_by_name`** | Filter background job logs strictly by Job ID/name (e.g. `CatalogImport`). | `jobName` *(required)*, `limit` *(default: 10)* |
+| **`get_job_log_entries`** | Retrieve trailing log entries inside a job log, optionally filtered by severity. | `jobName` *(optional)*, `level` *(default: 'all')*, `limit` *(default: 10)* |
+| **`search_job_logs`** | Search for a text pattern strictly within background job logs. | `pattern` *(required)*, `level` *(optional)*, `limit` *(default: 20)*, `jobName` *(optional)* |
+| **`get_job_execution_summary`** | Parses job step boundaries to return structured execution timeline & status (`OK`/`ERROR`/`RUNNING`). | `jobName` *(optional)* |
+
+---
+
 ## 🔌 Connecting to AI Clients
 
-### Claude Desktop (`claude_desktop_config.json`)
+### Claude Desktop
+Add to your `claude_desktop_config.json`:
+
+* **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+* **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
 ```json
 {
   "mcpServers": {
@@ -62,7 +118,11 @@ npx sfcc-logs-mcp
 }
 ```
 
-### Cursor (`.cursor/mcp.json`)
+---
+
+### Cursor IDE
+Add to `.cursor/mcp.json` in your workspace or global Cursor settings:
+
 ```json
 {
   "mcpServers": {
@@ -73,13 +133,62 @@ npx sfcc-logs-mcp
 }
 ```
 
-### Testing with MCP Inspector
+---
+
+### Windsurf / VS Code / Other MCP Clients
+Configure the stdio server using the globally installed binary:
+
+```json
+{
+  "mcpServers": {
+    "sfcc-logs": {
+      "command": "npx",
+      "args": ["-y", "sfcc-logs-mcp"]
+    }
+  }
+}
+```
+
+---
+
+## 🧪 Testing with MCP Inspector
+
+You can test and verify all tools interactively using the official `@modelcontextprotocol/inspector`:
+
 ```bash
-# Web UI
+# 1. Interactive Web UI
 npx @modelcontextprotocol/inspector sfcc-logs-mcp
 
-# CLI
+# 2. CLI Mode (List tools)
 npx @modelcontextprotocol/inspector --cli sfcc-logs-mcp --method tools/list
+
+# 3. CLI Mode (Call a tool)
+npx @modelcontextprotocol/inspector --cli sfcc-logs-mcp --method tools/call --tool-name get_latest_error
+
+# 4. Interactive Terminal UI (TUI)
+npx @modelcontextprotocol/inspector --tui sfcc-logs-mcp
+```
+
+---
+
+## 👨‍💻 Development & Contributing
+
+```bash
+# Clone the repository
+git clone https://github.com/nabhat/sfcc-logs-mcp.git
+cd sfcc-logs-mcp
+
+# Install dependencies
+npm install
+
+# Run unit tests with Vitest & coverage
+npm run test
+
+# Lint the codebase
+npm run lint
+
+# Compile TypeScript
+npm run build
 ```
 
 ---
