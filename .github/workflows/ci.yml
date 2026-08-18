@@ -6,14 +6,23 @@ on:
   pull_request:
     branches: [ master ]
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  build-and-test:
+    name: Build & Test
     runs-on: ubuntu-latest
-    container: node:lts-alpine
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
@@ -21,9 +30,8 @@ jobs:
       - name: Lint code
         run: npm run lint
 
+      - name: Run unit tests with coverage
+        run: npm run test
+
       - name: Build code
         run: npm run build
-
-      # Uncomment the following lines once you add tests to the repo
-      # - name: Run tests
-      #   run: npm run test

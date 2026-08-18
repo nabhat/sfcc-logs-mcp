@@ -1,0 +1,43 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Publish to npm Registry
+    runs-on: ubuntu-latest
+    # Security guard: Only allow publishing from master/main branch or official releases/tags
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.event_name == 'release'
+    permissions:
+      contents: read
+      id-token: write # Required for npm Trusted Publishing (OIDC) & Provenance
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint codebase
+        run: npm run lint
+
+      - name: Run unit tests with coverage
+        run: npm run test
+
+      - name: Build distribution files
+        run: npm run build
+
+      - name: Publish to npm (Trusted Publishing / OIDC)
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
