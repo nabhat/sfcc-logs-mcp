@@ -45,8 +45,8 @@
   "homepage": "https://github.com/nabhat/sfcc-logs-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
-    "dotenv": "^16.4.6",
-    "find-up": "^5.0.0",
+    "dotenv": "^17.4.2",
+    "find-up": "^8.0.0",
     "json5": "^2.2.3",
     "webdav": "^5.3.1"
   },
