@@ -22,9 +22,27 @@
     "README.md",
     "LICENSE.txt"
   ],
-  "keywords": [],
+  "keywords": [
+    "sfcc",
+    "demandware",
+    "salesforce",
+    "mcp",
+    "model-context-protocol",
+    "logs",
+    "webdav",
+    "claude",
+    "cursor"
+  ],
   "author": "nabhat",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nabhat/sfcc-logs-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nabhat/sfcc-logs-mcp/issues"
+  },
+  "homepage": "https://github.com/nabhat/sfcc-logs-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
     "dotenv": "^16.4.6",
