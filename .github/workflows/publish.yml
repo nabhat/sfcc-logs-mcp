@@ -13,7 +13,7 @@ jobs:
     if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.event_name == 'release'
     permissions:
       contents: read
-      id-token: write
+      id-token: write # Required for npm Trusted Publishing (OIDC) & Provenance
 
     steps:
       - name: Checkout repository
@@ -37,7 +37,7 @@ jobs:
       - name: Build distribution files
         run: npm run build
 
-      - name: Publish to npm
-        run: npm publish --access public
+      - name: Publish to npm (Trusted Publishing / OIDC)
+        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
