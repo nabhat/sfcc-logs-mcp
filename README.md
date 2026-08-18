@@ -27,15 +27,63 @@ This MCP server implements a **Context-Aware Workspace Handshake**:
 
 ---
 
-### Installation
-```bash
-#Install globally
-npm install -g sfcc-logs-mcp
+## 📦 Installation & Usage
 
+### 1. Global Installation (Recommended)
+Install globally so it is available directly in your `PATH` (similar to `gemini` or `claude`):
+```bash
+npm install -g sfcc-logs-mcp
+```
+
+Once installed, you can execute it directly anywhere:
+```bash
+sfcc-logs-mcp
+# or alias
+sfcc-logs
+```
+
+### 2. Run without installation (npx)
+```bash
+npx sfcc-logs-mcp
+```
+
+---
+
+## 🔌 Connecting to AI Clients
+
+### Claude Desktop (`claude_desktop_config.json`)
+```json
+{
+  "mcpServers": {
+    "sfcc-logs": {
+      "command": "sfcc-logs-mcp"
+    }
+  }
+}
+```
+
+### Cursor (`.cursor/mcp.json`)
+```json
+{
+  "mcpServers": {
+    "sfcc-logs": {
+      "command": "sfcc-logs-mcp"
+    }
+  }
+}
+```
+
+### Testing with MCP Inspector
+```bash
+# Web UI
+npx @modelcontextprotocol/inspector sfcc-logs-mcp
+
+# CLI
+npx @modelcontextprotocol/inspector --cli sfcc-logs-mcp --method tools/list
 ```
 
 ---
 
 ## 📒 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.txt) file for details.

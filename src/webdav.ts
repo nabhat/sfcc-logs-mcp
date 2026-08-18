@@ -7,8 +7,14 @@ export interface LogFileMetadata {
     lastModified: string;
 }
 
+interface SearchMatch {
+    file: string;
+    line: number;
+    text: string;
+}
+
 // Helper to create an authenticated webdav client
-function getWebDavClient(credentials: Credentials): WebDAVClient {
+export function getWebDavClient(credentials: Credentials): WebDAVClient {
     return createClient(credentials.webdavUrl, {
         username: credentials.username,
         password: credentials.password,
@@ -16,13 +22,13 @@ function getWebDavClient(credentials: Credentials): WebDAVClient {
 }
 
 // Helper to check if a filename is a background cron job log
-function isJobLog(filename: string): boolean {
+export function isJobLog(filename: string): boolean {
     const lower = filename.toLowerCase();
     return lower.includes('job') || lower.startsWith('jobs-') || lower.startsWith('job-');
 }
 
-// Helper to normalize the data into YYYYMMDD format
-function formatDateString(dateStr: string | undefined): string {
+// Helper to normalize the date into YYYYMMDD format
+export function formatDateString(dateStr: string | undefined): string {
     if (!dateStr || dateStr.toLowerCase() === 'today') {
         const now = new Date();
         const y = now.getFullYear();
@@ -30,11 +36,69 @@ function formatDateString(dateStr: string | undefined): string {
         const d = String(now.getDate()).padStart(2, '0');
         return `${y}${m}${d}`;
     }
-    return dateStr.replace(/[^0-9]/g, '');
+    return dateStr.replace(/\D/g, '');
+}
+
+// Helper to format a list of log files into markdown
+export function formatFileList(files: LogFileMetadata[], limit?: number): string {
+    const list = limit ? files.slice(0, limit) : files;
+    return list
+        .map(l => `- ${l.name} (Size: ${(l.size / 1024).toFixed(2)} KB, Modified: ${l.lastModified})`)
+        .join('\n');
+}
+
+// Helper to filter job logs by optional job name
+export function filterJobLogs(files: LogFileMetadata[], jobName?: string): LogFileMetadata[] {
+    let matched = files.filter(f => isJobLog(f.name));
+    if (jobName) {
+        const lower = jobName.toLowerCase();
+        matched = matched.filter(f => f.name.toLowerCase().includes(lower));
+    }
+    return matched;
+}
+
+// Helper to scan a batch of files for a pattern and optional level
+async function scanFilesInBatches(
+    credentials: Credentials,
+    filesToScan: LogFileMetadata[],
+    pattern: string,
+    level: string | undefined,
+    limit: number,
+    linesPerFile: number
+): Promise<string> {
+    const normalizedPattern = pattern.toLowerCase();
+    const results: SearchMatch[] = [];
+
+    for (const file of filesToScan) {
+        if (results.length >= limit) break;
+        const content = await getLogContent(credentials, file.name, linesPerFile);
+        const lines = content.split('\n');
+
+        lines.forEach((line, index) => {
+            if (results.length >= limit) return;
+            const matchesPattern = line.toLowerCase().includes(normalizedPattern);
+            const matchesLevel = !level || level.toLowerCase() === 'all' || line.toLowerCase().includes(level.toLowerCase());
+
+            if (matchesPattern && matchesLevel) {
+                results.push({
+                    file: file.name,
+                    line: index + 1,
+                    text: line.trim()
+                });
+            }
+        });
+    }
+
+    if (results.length === 0) {
+        return `No matches found for the pattern: "${pattern}" across ${filesToScan.length} files scanned.`;
+    }
+
+    return `Found ${results.length} matches for pattern: "${pattern}" across ${filesToScan.length} files scanned.\n\n` +
+        results.map(r => `[${r.file}:${r.line}] ${r.text}`).join('\n');
 }
 
 /**
- * Fetch al avilable log files from the instance's webDAV Logs folder
+ * Fetch all available log files from the instance's webDAV Logs folder
  */
 export async function listLogs(credentials: Credentials): Promise<LogFileMetadata[]> {
     const client = getWebDavClient(credentials);
@@ -47,7 +111,7 @@ export async function listLogs(credentials: Credentials): Promise<LogFileMetadat
         .filter((item: any) => item.type === 'file' && item.basename)
         .map((item: any) => ({
             name: item.basename,
-            size: item.size,
+            size: item.size || 0,
             lastModified: item.lastmod ? new Date(item.lastmod).toISOString() : ''
         }))
         .sort((a, b) => {
@@ -57,36 +121,50 @@ export async function listLogs(credentials: Credentials): Promise<LogFileMetadat
         });
 }
 
+// Helper to parse file contents into a string safely
+function parseTextContent(content: unknown): string {
+    if (typeof content === 'string') {
+        return content;
+    }
+    if (Buffer.isBuffer(content)) {
+        return content.toString('utf-8');
+    }
+    if (content instanceof ArrayBuffer) {
+        return Buffer.from(content).toString('utf-8');
+    }
+    return '';
+}
+
 /**
  * Fetch the end of a specific log file using partial content (Range header) to optimise bandwidth
  */
 export async function getLogContent(credentials: Credentials, fileName: string, count = 10): Promise<string> {
     const client = getWebDavClient(credentials);
     let text: string;
-    let isTurncated = false;
+    let isTruncated = false;
 
     try {
         // Try requesting the last 1MB of the file to save bandwidth
         const content = await client.getFileContents('/' + fileName, {
             format: 'text',
             headers: {
-                range: 'bytes=-1048576' //last 1MB
+                range: 'bytes=-1048576' // last 1MB
             }
         });
-        text = typeof content === 'string' ? content : content.toString();
-        isTurncated = true;
-    } catch (e) {
+        text = parseTextContent(content);
+        isTruncated = true;
+    } catch {
         // Fall back to fetching full file
         const content = await client.getFileContents('/' + fileName, {
             format: 'text'
         });
-        text = typeof content === 'string' ? content : content.toString();
+        text = parseTextContent(content);
     }
 
     const lines = text.split(/\r?\n/);
 
     // If text was successfully chunked by range, drop the first line as it may be cut in the middle of a string
-    if (isTurncated && lines.length > 1) {
+    if (isTruncated && lines.length > 1) {
         lines.shift();
     }
 
@@ -106,7 +184,7 @@ export async function cleanLog(credentials: Credentials, fileName: string): Prom
 }
 
 /**
- *  Get the latest logs matching a specific severity level and date
+ * Get the latest logs matching a specific severity level and date
  */
 export async function getLatestLogs(credentials: Credentials, level: string, limit = 10, date = 'today'): Promise<string> {
     const files = await listLogs(credentials);
@@ -126,7 +204,7 @@ export async function getLatestLogs(credentials: Credentials, level: string, lim
 
     const targetFile = matchedFiles[0];
     const content = await getLogContent(credentials, targetFile.name, limit);
-    return `--- Last ${limit} lines of  ${targetFile.name} (Size: ${(targetFile.size / 1024).toFixed(2)} KB, modified: ${targetFile.lastModified}) ---\n\n${content}`;
+    return `--- Last ${limit} lines of ${targetFile.name} (Size: ${(targetFile.size / 1024).toFixed(2)} KB, Modified: ${targetFile.lastModified}) ---\n\n${content}`;
 }
 
 /**
@@ -142,7 +220,7 @@ export async function summarizeLogs(credentials: Credentials, date = 'today'): P
     }
 
     let totalSize = 0;
-    const categories = {
+    const categories: Record<string, { count: number; size: number }> = {
         error: { count: 0, size: 0 },
         warn: { count: 0, size: 0 },
         info: { count: 0, size: 0 },
@@ -189,7 +267,7 @@ export async function summarizeLogs(credentials: Credentials, date = 'today'): P
 
     summary += '\nNewest Active Files:\n';
     matchedFiles.slice(0, 3).forEach(f => {
-        summary += `- ${f.name} (${(f.size / 1024).toFixed(2)}KB, Modified: ${f.lastModified})\n`;
+        summary += `- ${f.name} (${(f.size / 1024).toFixed(2)} KB, Modified: ${f.lastModified})\n`;
     });
 
     return summary;
@@ -198,49 +276,24 @@ export async function summarizeLogs(credentials: Credentials, date = 'today'): P
 /**
  * Searches across log files matching level/date for a specific text pattern
  */
-export async function searchLogs(credentials: Credentials, pattern: string, logLeve: string | undefined, limit = 20, date = 'today'): Promise<string> {
+export async function searchLogs(credentials: Credentials, pattern: string, logLevel?: string, limit = 20, date = 'today'): Promise<string> {
     const files = await listLogs(credentials);
     const datePattern = formatDateString(date);
-    const normalizedPattern = pattern.toLowerCase();
 
     let matchedFiles = files.filter(f => !datePattern || f.name.includes(datePattern));
-    if (logLeve && logLeve.toLowerCase() !== 'all') {
+    if (logLevel && logLevel.toLowerCase() !== 'all') {
+        const lvl = logLevel.toLowerCase();
         matchedFiles = matchedFiles.filter(f => {
             const name = f.name.toLowerCase();
-            return name.includes(`- ${logLeve.toLowerCase()}-`) || name.startsWith(`${logLeve.toLowerCase()}-`);
+            return name.includes(`-${lvl}-`) || name.startsWith(`${lvl}-`);
         });
     }
 
     if (matchedFiles.length === 0) {
-        return `No log files matching level ${logLeve || 'any'} and date ${datePattern || 'any'}`;
+        return `No log files matching level ${logLevel || 'any'} and date ${datePattern || 'any'}`;
     }
 
-    const results: Array<{ file: string; line: number; text: string }> = [];
-    const filesToScan = matchedFiles.slice(0, 5); //Scan top 5 files to preserve bandwidth
-
-    for (const file of filesToScan) {
-        if (results.length >= limit) break;
-        const content = await getLogContent(credentials, file.name, 10000);
-        const lines = content.split('\n');
-
-        lines.forEach((line, index) => {
-            if (results.length >= limit) return;
-            if (line.toLowerCase().includes(normalizedPattern)) {
-                results.push({
-                    file: file.name,
-                    line: index + 1,
-                    text: line.trim()
-                });
-            }
-        });
-    }
-
-    if (results.length === 0) {
-        return `No matches found for the pattern: "${pattern}" across ${filesToScan.length} files scanned.`;
-    }
-
-    return `Found ${results.length} matches for pattern: "${pattern}" across ${filesToScan.length} files scanned.\n\n` +
-        results.map(r => `[${r.file}:${r.line}] ${r.text}`).join('\n');
+    return scanFilesInBatches(credentials, matchedFiles.slice(0, 5), pattern, undefined, limit, 10000);
 }
 
 /**
@@ -248,45 +301,36 @@ export async function searchLogs(credentials: Credentials, pattern: string, logL
  */
 export async function listJobLogs(credentials: Credentials, limit = 10): Promise<string> {
     const files = await listLogs(credentials);
-    const jobFiles = files.filter(f => isJobLog(f.name));
-
-    const fileList = jobFiles
-        .slice(0, limit)
-        .map(l => `- ${l.name} (Size: ${(l.size / 1024).toFixed(2)} KB, Modified: ${l.lastModified})`)
-        .join('\n');
+    const jobFiles = filterJobLogs(files);
+    const fileList = formatFileList(jobFiles, limit);
 
     return fileList ? `Available Background Job Logs:\n\n${fileList}` : 'No job logs found on the instance.';
 }
 
 /**
- *  Filter job logs by a specific job ID /name
+ * Filter job logs by a specific job ID / name
  */
 export async function searchJobLogsByName(credentials: Credentials, jobName: string, limit = 10): Promise<string> {
     const files = await listLogs(credentials);
-    const matched = files.filter(f => {
-        return isJobLog(f.name) && f.name.toLowerCase().includes(jobName.toLowerCase());
-    });
-
-    const fileList = matched
-        .slice(0, limit)
-        .map(l => `- ${l.name} (Size: ${(l.size / 1024).toFixed(2)}KB, Modified: ${l.lastModified})`)
-        .join('\n');
+    const matched = filterJobLogs(files, jobName);
+    const fileList = formatFileList(matched, limit);
 
     return fileList ? `Matching job logs for "${jobName}":\n\n${fileList}` : `No job logs found matching: "${jobName}"`;
 }
 
-/**
- *  Stream and filter entries inside a specific job log by severity
- */
-export async function getJobLogEntries(credentials: Credentials, level: string | undefined, limit = 10, jobName?: string): Promise<string> {
-    const files = await listLogs(credentials);
-    let matchedFiles = files.filter(f => isJobLog(f.name));
-    if (jobName) {
-        matchedFiles = matchedFiles.filter(f => f.name.toLowerCase().includes(jobName.toLowerCase()));
-    }
+function getJobNotFoundMessage(jobName?: string): string {
+    return jobName ? `No job logs found for job: ${jobName}.` : 'No job logs found.';
+}
 
-    if (matchedFiles.length == 0) {
-        return `No job logs found ${jobName ? `for job: ${jobName}` : ''}.`;
+/**
+ * Stream and filter entries inside a specific job log by severity
+ */
+export async function getJobLogEntries(credentials: Credentials, level?: string, limit = 10, jobName?: string): Promise<string> {
+    const files = await listLogs(credentials);
+    const matchedFiles = filterJobLogs(files, jobName);
+
+    if (matchedFiles.length === 0) {
+        return getJobNotFoundMessage(jobName);
     }
 
     const targetFile = matchedFiles[0];
@@ -294,9 +338,12 @@ export async function getJobLogEntries(credentials: Credentials, level: string |
     const lines = content.split('\n');
 
     let filtered = lines;
-    if (level && level !== 'all') {
+    if (level && level.toLowerCase() !== 'all') {
         const normalizedLevel = level.toUpperCase();
-        filtered = lines.filter(line => line.toUpperCase().includes(`[${normalizedLevel}]`) || line.toUpperCase().includes(`|${normalizedLevel}|`) || line.toUpperCase().includes(normalizedLevel));
+        filtered = lines.filter(line => {
+            const upper = line.toUpperCase();
+            return upper.includes(`[${normalizedLevel}]`) || upper.includes(`|${normalizedLevel}|`) || upper.includes(normalizedLevel);
+        });
     }
 
     return `--- Job log: ${targetFile.name} (Filtered by level: ${level || 'all'}, Last ${limit} entries) ---\n\n` +
@@ -306,47 +353,15 @@ export async function getJobLogEntries(credentials: Credentials, level: string |
 /**
  * Search for text pattern strictly inside job logs
  */
-export async function searchJobLogs(credentials: Credentials, pattern: string, level: string | undefined, limit = 20, jobName?: string): Promise<string> {
+export async function searchJobLogs(credentials: Credentials, pattern: string, level?: string, limit = 20, jobName?: string): Promise<string> {
     const files = await listLogs(credentials);
-    let matchedFiles = files.filter(f => isJobLog(f.name));
-    if (jobName) {
-        matchedFiles = matchedFiles.filter(f => f.name.toLowerCase().includes(jobName.toLowerCase()));
-    }
+    const matchedFiles = filterJobLogs(files, jobName);
 
     if (matchedFiles.length === 0) {
-        return `No job logs found ${jobName ? `for job: ${jobName}` : ''}.`;
+        return getJobNotFoundMessage(jobName);
     }
 
-    const results: Array<{ file: string; line: number; text: string }> = [];
-    const filesToScan = matchedFiles.slice(0, 3);
-    const normalizedPattern = pattern.toLowerCase();
-
-    for (const file of filesToScan) {
-        if (results.length >= limit) break;
-        const content = await getLogContent(credentials, file.name, 5000);
-        const lines = content.split('\n');
-
-        lines.forEach((line, index) => {
-            if (results.length >= limit) return;
-            const matchesPattern = line.toLowerCase().includes(normalizedPattern);
-            const matchesLevel = !level || level.toLowerCase() === 'all' || line.toLowerCase().includes(level.toLowerCase());
-
-            if (matchesPattern && matchesLevel) {
-                results.push({
-                    file: file.name,
-                    line: index + 1,
-                    text: line.trim()
-                });
-            }
-        });
-    }
-
-    if (results.length === 0) {
-        return `No matches found for the pattern: "${pattern}" across ${filesToScan.length} files scanned.`;
-    }
-
-    return `Found ${results.length} matches for pattern: "${pattern}" across ${filesToScan.length} files scanned.\n\n` +
-        results.map(r => `[${r.file}:${r.line}] ${r.text}`).join('\n');
+    return scanFilesInBatches(credentials, matchedFiles.slice(0, 3), pattern, level, limit, 5000);
 }
 
 /**
@@ -354,12 +369,10 @@ export async function searchJobLogs(credentials: Credentials, pattern: string, l
  */
 export async function getJobExecutionSummary(credentials: Credentials, jobName?: string): Promise<string> {
     const files = await listLogs(credentials);
-    const matchedFiles = files.filter(f => {
-        return isJobLog(f.name) && (!jobName || f.name.toLowerCase().includes(jobName.toLowerCase()));
-    });
+    const matchedFiles = filterJobLogs(files, jobName);
 
     if (matchedFiles.length === 0) {
-        return `No job logs found ${jobName ? `for job: ${jobName}` : ''}.`;
+        return getJobNotFoundMessage(jobName);
     }
 
     const targetFile = matchedFiles[0];
