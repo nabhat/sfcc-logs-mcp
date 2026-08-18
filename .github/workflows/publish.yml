@@ -9,6 +9,8 @@ jobs:
   publish:
     name: Publish to npm Registry
     runs-on: ubuntu-latest
+    # Security guard: Only allow publishing from master/main branch or official releases/tags
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.event_name == 'release'
     permissions:
       contents: read
       id-token: write
